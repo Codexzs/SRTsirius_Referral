@@ -42,7 +42,7 @@ jobs:
 
       - name: Download APK
         # ⚠️ REPLACE THIS URL WITH YOUR ACTUAL APK DOWNLOAD LINK
-        run: curl -L -o app.apk "https://your-staging-server.com/app-latest.apk"
+        run: curl -L -o app.apk "https://play.google.com/store/apps/details?id=com.siriusnetwork.app"
 
       - name: Run Emulator & Create Account
         uses: reactivecircus/android-emulator-runner@v2
