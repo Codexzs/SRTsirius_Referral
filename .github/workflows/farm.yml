@@ -2,8 +2,9 @@ name: Daily Farming
 
 on:
   schedule:
-    - cron: '0 12 * * *'
-  workflow_dispatch:
+    # Runs once daily at 10:00 PM UTC (after all 3 registration runs)
+    - cron: '0 22 * * *'
+  workflow_dispatch:      # Allows manual testing from the Actions tab
 
 permissions:
   contents: write
@@ -21,7 +22,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Appium & UIAutomator2 Driver
+      - name: Install Appium & UIAutomator2
         run: |
           npm install -g appium
           appium driver install uiautomator2
@@ -35,6 +36,7 @@ jobs:
         run: pip install Appium-Python-Client selenium
 
       - name: Download APK
+        # ⚠️ REPLACE THIS URL WITH YOUR ACTUAL APK DOWNLOAD LINK
         run: curl -L -o app.apk "https://your-staging-server.com/app-latest.apk"
 
       - name: Run Emulator & Farm All Accounts
