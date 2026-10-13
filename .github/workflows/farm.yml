@@ -23,7 +23,7 @@ jobs:
 
       - name: Install Appium & UIAutomator2
         run: |
-          npm install -g appium
+          npm install -g appium --no-audit --no-fund
           appium driver install uiautomator2
 
       - name: Set up Python
@@ -34,20 +34,42 @@ jobs:
       - name: Install Python Dependencies
         run: pip install Appium-Python-Client selenium
 
-      # ⬇️ NO APK DOWNLOAD NEEDED! The APK is in the repo and checked out automatically.
-
       - name: Run Emulator & Farm All Accounts
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 33
+          api-level: 30
           target: google_apis
           arch: x86_64
-          profile: pixel_5
+          profile: pixel_2
+          ram-size: 2048M
+          heap-size: 512M
           emulator-options: >
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-            -camera-back none -camera-front none
+            -camera-back none -camera-front none -no-snapshot
           script: |
+            echo "=== Installing APK ==="
             adb install -r app.apk
-            appium &
-            while ! nc -z localhost 4723; do sleep 1; done
+            
+            if ! adb shell pm list packages | grep -q "com.siriusnetwork.app"; then
+              echo "❌ APK installation failed"
+              exit 1
+            fi
+            echo "✅ APK installed successfully"
+            
+            echo "=== Starting Appium ==="
+            appium --log-level info &
+            APPIUM_PID=$!
+            
+            TIMEOUT=60
+            while ! nc -z localhost 4723; do
+              sleep 1
+              TIMEOUT=$((TIMEOUT-1))
+              if [ $TIMEOUT -le 0 ]; then
+                echo "❌ Appium failed to start in 60s"
+                exit 1
+              fi
+            done
+            echo "✅ Appium is up on port 4723"
+            
+            echo "=== Running daily_login.py ==="
             python daily_login.py
