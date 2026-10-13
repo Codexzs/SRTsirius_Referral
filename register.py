@@ -12,18 +12,20 @@ from selenium.common.exceptions import TimeoutException
 # ============================================================
 REFERRAL_CODE = "wQhGMG"
 FILE_NAME = "identities.txt"
-ACCOUNTS_PER_RUN = 1   # ⬅️ CHANGED: 1 account per run = 1 fresh GitHub IP
+ACCOUNTS_PER_RUN = 1  # 1 account per run = 1 fresh GitHub IP
 
 # ============================================================
-#   UI ELEMENTS
+#   UI ELEMENTS (Based on your screenshots)
 # ============================================================
 XPATH_BTN_GENERATE       = "//*[@text='Generate identity ID']"
 XPATH_BTN_SAVED          = "//*[@text='I saved it, next']"
 XPATH_WELCOME_LOGIN_LINK = "//*[@text='Log in']"
 XPATH_INPUT_FIELD        = "//android.widget.EditText"
 XPATH_LOGIN_BTN          = "//android.widget.Button[@text='Log in']"
+# Anchored to the 'Copy' button to prevent grabbing the description text
 XPATH_IDENTITY           = "//android.widget.Button[@text='Copy']/parent::*/android.widget.TextView"
 
+# Dashboard Elements (Update with real resource-ids from Appium Inspector if these fail)
 ID_START_LINK_BTN = "com.siriusnetwork.app:id/btn_start_link"
 ID_REFERRAL_INPUT = "com.siriusnetwork.app:id/et_referral_code"
 ID_BIND_BTN       = "com.siriusnetwork.app:id/btn_bind_referral"
@@ -46,18 +48,21 @@ def human_type(element, text):
 def run_registration(driver):
     wait = WebDriverWait(driver, 25)
 
+    # 1. Generate Identity
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_BTN_GENERATE))).click()
     random_sleep()
 
+    # 2. Extract Identity Code
     identity_code = wait.until(EC.presence_of_element_located(
         (AppiumBy.XPATH, XPATH_IDENTITY)
     )).text.strip()
     print(f"      Generated Identity: {identity_code[:8]}...")
 
+    # 3. Confirm Saved
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_BTN_SAVED))).click()
     random_sleep(3.0, 5.0)
 
-    # Login
+    # 4. Login with new identity
     try:
         login_input = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((AppiumBy.XPATH, XPATH_INPUT_FIELD))
@@ -74,7 +79,7 @@ def run_registration(driver):
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_LOGIN_BTN))).click()
     random_sleep(4.0, 7.0)
 
-    # Bind referral
+    # 5. Bind Referral Code
     wait.until(EC.element_to_be_clickable((AppiumBy.ID, ID_START_LINK_BTN))).click()
     random_sleep()
 
@@ -84,19 +89,19 @@ def run_registration(driver):
     wait.until(EC.element_to_be_clickable((AppiumBy.ID, ID_BIND_BTN))).click()
     random_sleep(2.0, 4.0)
 
-    # Save
+    # 6. Verify and Save to File
     try:
         wait.until(EC.presence_of_element_located((AppiumBy.ID, ID_SUCCESS_MSG)))
         print("      ✅ Success verified.")
     except TimeoutException:
-        print("      ⚠️ Success msg not found. Saving anyway.")
+        print("      ⚠️ Success message not detected. Saving anyway.")
 
     with open(FILE_NAME, "a") as file:
         file.write(f"{identity_code}\n")
     print(f"      💾 Saved to {FILE_NAME}")
 
 # ============================================================
-#   MAIN
+#   MAIN EXECUTION
 # ============================================================
 if __name__ == "__main__":
     options = UiAutomator2Options()
