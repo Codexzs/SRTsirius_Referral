@@ -2,9 +2,8 @@ name: Daily Farming
 
 on:
   schedule:
-    # Runs once daily at 10:00 PM UTC (after all 3 registration runs)
     - cron: '0 22 * * *'
-  workflow_dispatch:      # Allows manual testing from the Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -35,9 +34,7 @@ jobs:
       - name: Install Python Dependencies
         run: pip install Appium-Python-Client selenium
 
-      - name: Download APK
-        # ⚠️ REPLACE THIS URL WITH YOUR ACTUAL APK DOWNLOAD LINK
-        run: curl -L -o app.apk "https://play.google.com/store/apps/details?id=com.siriusnetwork.app"
+      # ⬇️ NO APK DOWNLOAD NEEDED! The APK is in the repo and checked out automatically.
 
       - name: Run Emulator & Farm All Accounts
         uses: reactivecircus/android-emulator-runner@v2
@@ -50,7 +47,7 @@ jobs:
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none
           script: |
-            adb install -r ./app.apk
+            adb install -r app.apk
             appium &
             while ! nc -z localhost 4723; do sleep 1; done
             python daily_login.py
