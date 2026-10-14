@@ -97,35 +97,42 @@ def extract_identity_code(driver):
         return longest
     raise Exception("Could not find identity code on screen.")
 
+def is_app_alive(driver):
+    """Returns True if the app is still in the foreground."""
+    for xpath in [
+        "//*[@text='Home']",
+        "//*[@text='Human verification']",
+        "//*[contains(@text, 'Checking')]",
+        "//*[contains(@text, 'Generate')]",
+        "//*[contains(@text, 'identity')]",
+    ]:
+        try:
+            driver.find_element(AppiumBy.XPATH, xpath)
+            return True
+        except Exception:
+            continue
+    return False
+
 def wait_for_cloudflare(driver, max_wait=120):
     log("cf", f"Waiting up to {max_wait}s for Cloudflare to auto-pass...")
     start = time.time()
-    last_status = ""
     while time.time() - start < max_wait:
         elapsed = int(time.time() - start)
 
-        # Check if Cloudflare passed (Home tab visible)
         try:
-            driver.find_element(AppiumBy.XPATH, XPATH_HOME_TAB)
+            driver.find_element(AppiumBy.XPATH, "//*[@text='Home']")
             log("cf", f"✅ Cloudflare passed after {elapsed}s!")
             return True
         except Exception:
             pass
 
-        # Check current Cloudflare status
-        try:
-            driver.find_element(AppiumBy.XPATH, "//*[@text='Human verification']")
-            status = "widget visible"
-        except Exception:
-            try:
-                driver.find_element(AppiumBy.XPATH, "//*[contains(@text, 'Checking')]")
-                status = "checking browser"
-            except Exception:
-                status = "transitioning"
+        # Detect app crash
+        if not is_app_alive(driver):
+            log("cf", f"❌ App appears to have crashed at {elapsed}s (foreground is no longer the app)")
+            return False
 
-        if status != last_status:
-            log("cf", f"   [{elapsed}s] Status: {status}")
-            last_status = status
+        if elapsed > 0 and elapsed % 15 == 0:
+            log("cf", f"   [{elapsed}s] Still waiting...")
 
         time.sleep(3)
 
