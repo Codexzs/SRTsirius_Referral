@@ -29,7 +29,8 @@ XPATH_LINK_NOW_BTN       = "//*[@text='Link now']"
 XPATH_CONFIRM_BINDING    = "//*[@text='Confirm binding']"
 XPATH_IN_PROGRESS        = "//*[@text='In progress']"
 XPATH_HOME_TAB           = "//*[@text='Home']"
-XPATH_CLOUDFLARE_CHECK   = "//*[@text='Human verification']"
+XPATH_TRY_AGAIN          = "//*[@text='Try again']"
+XPATH_CF_FAILED          = "//*[contains(@text, 'Verification failed')]"
 
 # ============================================================
 #   HELPERS
@@ -98,11 +99,13 @@ def extract_identity_code(driver):
     raise Exception("Could not find identity code on screen.")
 
 def is_app_alive(driver):
-    """Returns True if the app is still in the foreground."""
+    """Check if app is still foregrounded by looking for known elements."""
     for xpath in [
         "//*[@text='Home']",
         "//*[@text='Human verification']",
         "//*[contains(@text, 'Checking')]",
+        "//*[contains(@text, 'Verification failed')]",
+        "//*[@text='Try again']",
         "//*[contains(@text, 'Generate')]",
         "//*[contains(@text, 'identity')]",
     ]:
@@ -113,30 +116,68 @@ def is_app_alive(driver):
             continue
     return False
 
-def wait_for_cloudflare(driver, max_wait=120):
-    log("cf", f"Waiting up to {max_wait}s for Cloudflare to auto-pass...")
-    start = time.time()
-    while time.time() - start < max_wait:
-        elapsed = int(time.time() - start)
+def wait_for_cloudflare(driver, max_wait=60, max_retries=5):
+    """
+    Wait for Cloudflare to pass. If it fails and shows a 'Try again' button,
+    click it and retry up to max_retries times.
+    """
+    for attempt in range(1, max_retries + 1):
+        log("cf", f"--- Cloudflare attempt {attempt}/{max_retries} ---")
+        start = time.time()
+        last_status = ""
 
-        try:
-            driver.find_element(AppiumBy.XPATH, "//*[@text='Home']")
-            log("cf", f"✅ Cloudflare passed after {elapsed}s!")
-            return True
-        except Exception:
-            pass
+        while time.time() - start < max_wait:
+            elapsed = int(time.time() - start)
 
-        # Detect app crash
-        if not is_app_alive(driver):
-            log("cf", f"❌ App appears to have crashed at {elapsed}s (foreground is no longer the app)")
-            return False
+            # SUCCESS: Home tab visible
+            try:
+                driver.find_element(AppiumBy.XPATH, XPATH_HOME_TAB)
+                log("cf", f"✅ Cloudflare passed after {elapsed}s on attempt {attempt}")
+                return True
+            except Exception:
+                pass
 
-        if elapsed > 0 and elapsed % 15 == 0:
-            log("cf", f"   [{elapsed}s] Still waiting...")
+            # FAILURE: "Verification failed" message
+            try:
+                driver.find_element(AppiumBy.XPATH, XPATH_CF_FAILED)
+                log("cf", f"❌ Cloudflare failed on attempt {attempt} after {elapsed}s")
+                try:
+                    retry_btn = driver.find_element(AppiumBy.XPATH, XPATH_TRY_AGAIN)
+                    log("cf", "   Clicking 'Try again' button...")
+                    retry_btn.click()
+                    time.sleep(3)
+                    break  # Break to retry loop
+                except Exception:
+                    log("cf", "   No 'Try again' button found, waiting...")
+            except Exception:
+                pass
 
-        time.sleep(3)
+            # Detect app crash
+            if not is_app_alive(driver):
+                log("cf", f"❌ App crashed at {elapsed}s")
+                return False
 
-    log("cf", f"❌ Cloudflare did NOT auto-pass within {max_wait}s")
+            # Periodic status log
+            if elapsed > 0 and elapsed % 15 == 0:
+                try:
+                    driver.find_element(AppiumBy.XPATH, "//*[@text='Human verification']")
+                    status = "widget visible"
+                except Exception:
+                    try:
+                        driver.find_element(AppiumBy.XPATH, "//*[contains(@text, 'Checking')]")
+                        status = "checking browser"
+                    except Exception:
+                        status = "unknown state"
+                if status != last_status:
+                    log("cf", f"   [{elapsed}s] Status: {status}")
+                    last_status = status
+
+            time.sleep(3)
+        else:
+            # Inner loop finished without break — timeout this attempt
+            log("cf", f"⏱ Attempt {attempt} timed out after {max_wait}s")
+
+    log("cf", "❌ All Cloudflare retry attempts exhausted")
     return False
 
 # ============================================================
@@ -171,13 +212,14 @@ def run_registration(driver):
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_CONFIRM_CREATION))).click()
     log("4/9", "✅ Confirm creation clicked")
 
-    # ---- Cloudflare wait with retry ----
-    log("5/9", "Waiting for Cloudflare Human verification...")
-    if not wait_for_cloudflare(driver, max_wait=120):
-        log("5/9", "❌ Cloudflare is blocking. Dumping page source...")
+    # ---- Cloudflare handling with retries ----
+    log("5/9", "Handling Cloudflare Human verification...")
+    if not wait_for_cloudflare(driver, max_wait=60, max_retries=5):
+        log("5/9", "❌ Cloudflare could not be passed after all retries")
         print(driver.page_source, flush=True)
-        raise Exception("Cloudflare verification is blocking the workflow. "
-                        "Ask mentor to disable Cloudflare on staging.")
+        raise Exception("Cloudflare verification failed after retries. "
+                        "Ask dev team to disable Cloudflare on staging or "
+                        "use a residential proxy.")
 
     random_sleep(4.0, 7.0)
 
