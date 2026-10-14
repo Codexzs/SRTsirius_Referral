@@ -68,11 +68,13 @@ jobs:
             echo "=== Installing APK ==="
             adb install -r app.apk
             
-            if ! adb shell pm list packages | grep -q "com.siriusnetwork.app"; then
+            # FIXED: Using a standard if block to avoid shell syntax errors
+            if adb shell pm list packages | grep -q "com.siriusnetwork.app"; then
+              echo "✅ APK installed successfully"
+            else
               echo "❌ APK installation failed"
               exit 1
             fi
-            echo "✅ APK installed successfully"
             
             echo "=== Starting Appium ==="
             appium --log-level info &
