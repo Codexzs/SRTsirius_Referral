@@ -18,7 +18,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ⬇️ CRITICAL FIX: Enable KVM for hardware acceleration ⬇️
       - name: Enable KVM group perms
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -55,10 +54,10 @@ jobs:
       - name: Run Emulator & Create Account
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
+          api-level: 33
+          target: google_apis_playstore
           arch: x86_64
-          profile: pixel_2
+          profile: pixel_5
           ram-size: 2048M
           heap-size: 512M
           emulator-options: >
@@ -68,6 +67,9 @@ jobs:
             echo "=== Installing APK ==="
             adb install -r ./app.apk && echo "✅ APK installed successfully" || exit 1
             
+            echo "=== Setting WebView to real Chrome ==="
+            adb shell cmd webviewupdate set-webview-implementation com.android.chrome || true
+            
             echo "=== Starting Appium ==="
             appium --log-level info &
             sleep 15
@@ -75,7 +77,6 @@ jobs:
             echo "=== Running register.py ==="
             python register.py
             
-            # Hard-kill the emulator to prevent the runner's teardown from hanging
             pkill -9 -f qemu-system 2>/dev/null || true
 
       - name: Commit New Identity to GitHub
