@@ -69,7 +69,6 @@ jobs:
             
             echo "=== Starting Appium ==="
             appium --log-level info &
-            APPIUM_PID=$!
             
             TIMEOUT=60
             while ! nc -z localhost 4723; do
@@ -84,6 +83,9 @@ jobs:
             
             echo "=== Running register.py ==="
             python register.py
+            
+            # Hard-kill the emulator to prevent the runner's teardown from hanging
+            pkill -9 -f qemu-system 2>/dev/null || true
 
       - name: Commit New Identity to GitHub
         run: |
