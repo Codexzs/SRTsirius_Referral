@@ -35,7 +35,6 @@ ID_SUCCESS_MSG    = "com.siriusnetwork.app:id/tv_success_message"
 #   HELPERS
 # ============================================================
 def log(step, msg):
-    """Timestamped logging so we can see exactly where the script is."""
     print(f"[{time.strftime('%H:%M:%S')}] [{step}] {msg}", flush=True)
 
 def random_sleep(min_s=2.0, max_s=4.0):
@@ -47,7 +46,6 @@ def human_type(element, text):
         time.sleep(random.uniform(0.1, 0.3))
 
 def reset_app():
-    """Force-stop, clear data, and relaunch the app via ADB (faster than Appium's clearApp)."""
     log("reset", "Force-stopping app...")
     subprocess.run(["adb", "shell", "am", "force-stop", APP_PACKAGE])
     time.sleep(1)
