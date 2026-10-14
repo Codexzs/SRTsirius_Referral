@@ -2,8 +2,8 @@ name: Daily Farming
 
 on:
   schedule:
-    - cron: '0 22 * * *'   # Runs once daily at 22:00 UTC
-  workflow_dispatch:       # Allows manual testing from the Actions tab
+    - cron: '0 22 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,7 +16,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ⬇️ Enable KVM for hardware acceleration ⬇️
       - name: Enable KVM group perms
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -48,17 +47,14 @@ jobs:
           target: google_apis_playstore
           arch: x86_64
           profile: pixel_5
-          ram-size: 2048M
-          heap-size: 512M
+          ram-size: 4096M
+          heap-size: 1024M
           emulator-options: >
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none -no-snapshot
           script: |
             echo "=== Installing APK ==="
             adb install -r ./app.apk && echo "✅ APK installed successfully" || exit 1
-            
-            echo "=== Setting WebView to real Chrome ==="
-            adb shell cmd webviewupdate set-webview-implementation com.android.chrome || true
             
             echo "=== Starting Appium ==="
             appium --log-level info &
@@ -68,5 +64,4 @@ jobs:
             echo "=== Running daily_login.py ==="
             python daily_login.py
             
-            # Hard-kill the emulator to prevent the runner's teardown from hanging
             pkill -9 -f qemu-system 2>/dev/null || true
