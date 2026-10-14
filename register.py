@@ -28,7 +28,8 @@ XPATH_START_BTN          = "//*[@text='Start']"
 XPATH_LINK_NOW_BTN       = "//*[@text='Link now']"
 XPATH_CONFIRM_BINDING    = "//*[@text='Confirm binding']"
 XPATH_IN_PROGRESS        = "//*[@text='In progress']"
-XPATH_HOME_TAB           = "//*[@text='Home']" 
+XPATH_HOME_TAB           = "//*[@text='Home']"
+XPATH_CLOUDFLARE_CHECK   = "//*[@text='Human verification']"
 
 # ============================================================
 #   HELPERS
@@ -96,102 +97,116 @@ def extract_identity_code(driver):
         return longest
     raise Exception("Could not find identity code on screen.")
 
+def wait_for_cloudflare(driver, max_wait=90):
+    """
+    Wait for Cloudflare to resolve. Returns True if passed, False if stuck.
+    Cloudflare sometimes resolves in 10-30 seconds if it decides the session is OK.
+    """
+    log("cf", f"Waiting up to {max_wait}s for Cloudflare to resolve...")
+    start = time.time()
+    while time.time() - start < max_wait:
+        elapsed = int(time.time() - start)
+        try:
+            # Check if we made it past Cloudflare (Home tab visible)
+            driver.find_element(AppiumBy.XPATH, XPATH_HOME_TAB)
+            log("cf", f"✅ Cloudflare passed after {elapsed}s!")
+            return True
+        except Exception:
+            pass
+
+        # Log Cloudflare status every 15 seconds
+        if elapsed > 0 and elapsed % 15 == 0:
+            try:
+                driver.find_element(AppiumBy.XPATH, XPATH_CLOUDFLARE_CHECK)
+                log("cf", f"   Still on Cloudflare widget... ({elapsed}s)")
+            except Exception:
+                log("cf", f"   Intermediate state... ({elapsed}s)")
+
+        time.sleep(3)
+
+    log("cf", f"❌ Cloudflare did NOT resolve within {max_wait}s")
+    return False
+
 # ============================================================
-#   REGISTRATION FLOW (9 Steps)
+#   REGISTRATION FLOW
 # ============================================================
 def run_registration(driver):
     wait = WebDriverWait(driver, 25)
 
-    # 1. Generate Identity
     log("1/9", "Clicking 'Generate identity ID'...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_BTN_GENERATE))).click()
     log("1/9", "✅ Clicked")
     random_sleep()
 
-    # 2. Extract Identity
     log("2/9", "Extracting identity code...")
     identity_code = extract_identity_code(driver)
     log("2/9", f"✅ Identity: {identity_code[:8]}...")
 
-    # 3. Save & Next
     log("3/9", "Clicking 'I saved it, next'...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_BTN_SAVED))).click()
     log("3/9", "✅ Clicked")
     random_sleep(3.0, 5.0)
 
-    # 4. Verify Identity & Confirm Creation
-    log("4/9", "Waiting for 'Verify identity ID backup' screen...")
+    log("4/9", "Typing identity code on verify screen...")
     login_input = wait.until(EC.presence_of_element_located((AppiumBy.XPATH, XPATH_INPUT_FIELD)))
     login_input.click()
     human_type(login_input, identity_code)
     log("4/9", "✅ Typed identity code")
     random_sleep(0.5, 1.5)
-
     hide_keyboard(driver)
 
     log("4/9", "Clicking 'Confirm creation'...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_CONFIRM_CREATION))).click()
     log("4/9", "✅ Confirm creation clicked")
 
-    # 5. Wait for Cloudflare Turnstile (If it appears)
+    # ---- Cloudflare wait with retry ----
     log("5/9", "Waiting for Cloudflare Human verification...")
-    try:
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((AppiumBy.XPATH, "//*[@text='Home']"))
-        )
-        log("5/9", "✅ Cloudflare passed, dashboard loaded!")
-    except TimeoutException:
-        log("5/9", "⚠️ Cloudflare verification seems stuck. Dumping page source...")
+    if not wait_for_cloudflare(driver, max_wait=90):
+        log("5/9", "❌ Cloudflare is blocking. Dumping page source...")
         print(driver.page_source, flush=True)
-        raise Exception("Cloudflare verification failed or took too long.")
+        raise Exception("Cloudflare verification is blocking the workflow. "
+                        "Ask mentor to disable Cloudflare on staging.")
 
     random_sleep(4.0, 7.0)
 
-    # 6. Click Start & Handle Referral Popup
-    log("6/9", "Clicking 'Start' button to trigger referral popup...")
+    log("6/9", "Clicking Start to trigger referral popup...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_START_BTN))).click()
-    log("6/9", "✅ Start clicked. Waiting for 'Referral code not linked' popup...")
+    log("6/9", "✅ Start clicked, waiting for popup...")
     random_sleep(3.0, 5.0)
 
-    log("6/9", "Clicking 'Link now' button...")
+    log("6/9", "Clicking 'Link now'...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_LINK_NOW_BTN))).click()
     log("6/9", "✅ Link now clicked")
     random_sleep(3.0, 5.0)
 
-    # 7. Bind Referral Code
     log("7/9", "Binding referral code...")
     referral_input = wait.until(EC.presence_of_element_located((AppiumBy.XPATH, XPATH_INPUT_FIELD)))
     referral_input.click()
     human_type(referral_input, REFERRAL_CODE)
     log("7/9", "✅ Typed referral code")
     random_sleep(0.5, 1.5)
-
     hide_keyboard(driver)
 
     log("7/9", "Clicking 'Confirm binding'...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_CONFIRM_BINDING))).click()
-    log("7/9", "✅ Confirm binding clicked")
+    log("7/9", "✅ Referral bound")
     random_sleep(3.0, 5.0)
 
-    # 8. Navigate back to Home tab
-    log("8/9", "Navigating back to Home tab...")
-    home_tab = wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_HOME_TAB)))
-    home_tab.click()
+    log("8/9", "Navigating to Home tab...")
+    wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_HOME_TAB))).click()
     log("8/9", "✅ Home tab clicked")
     random_sleep(2.0, 4.0)
 
-    # 9. Click Start and Verify
-    log("9/9", "Clicking 'Start' button on Home screen...")
-    start_btn = wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_START_BTN)))
-    start_btn.click()
-    log("9/9", "✅ Start button clicked. Waiting for 'In progress'...")
+    log("9/9", "Clicking Start on Home screen...")
+    wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_START_BTN))).click()
+    log("9/9", "✅ Start clicked")
     random_sleep(3.0, 5.0)
 
     try:
         wait.until(EC.presence_of_element_located((AppiumBy.XPATH, XPATH_IN_PROGRESS)))
         log("9/9", "✅ Success verified (In progress)")
     except TimeoutException:
-        log("9/9", "⚠️ 'In progress' text not detected, saving anyway.")
+        log("9/9", "⚠️ 'In progress' not detected, saving anyway.")
 
     with open(FILE_NAME, "a") as file:
         file.write(f"{identity_code}\n")
