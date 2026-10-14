@@ -24,7 +24,8 @@ XPATH_BTN_GENERATE       = "//*[@text='Generate identity ID']"
 XPATH_BTN_SAVED          = "//*[@text='I saved it, next']"
 XPATH_WELCOME_LOGIN_LINK = "//*[@text='Log in']"
 XPATH_INPUT_FIELD        = "//android.widget.EditText"
-XPATH_LOGIN_BTN          = "//android.widget.Button[@text='Log in']"
+# FIXED: Broadened from android.widget.Button to wildcard
+XPATH_LOGIN_BTN          = "//*[@text='Log in']"
 
 ID_START_LINK_BTN = "com.siriusnetwork.app:id/btn_start_link"
 ID_REFERRAL_INPUT = "com.siriusnetwork.app:id/et_referral_code"
@@ -45,6 +46,15 @@ def human_type(element, text):
         element.send_keys(ch)
         time.sleep(random.uniform(0.1, 0.3))
 
+def hide_keyboard(driver):
+    """Safely hide the on-screen keyboard if it's visible."""
+    try:
+        driver.hide_keyboard()
+        log("kbd", "✅ Hid on-screen keyboard")
+    except Exception:
+        log("kbd", "Keyboard already hidden or not present")
+    time.sleep(1.0)
+
 def reset_app():
     log("reset", "Force-stopping app...")
     subprocess.run(["adb", "shell", "am", "force-stop", APP_PACKAGE])
@@ -63,15 +73,10 @@ def reset_app():
     log("reset", "✅ App reset complete")
 
 def extract_identity_code(driver):
-    """
-    Robustly find the identity code by scanning ALL TextViews on screen
-    and picking the one that looks like a hex identity string.
-    Works regardless of UI nesting.
-    """
+    """Robustly find the identity code by scanning all TextViews."""
     log("extract", "Waiting for identity screen to render...")
-    time.sleep(3)  # Give the screen a moment to fully render
+    time.sleep(3)
 
-    # Collect all visible TextViews
     elements = driver.find_elements(AppiumBy.XPATH, "//android.widget.TextView")
     log("extract", f"Found {len(elements)} TextView(s) on screen. Scanning...")
 
@@ -82,19 +87,16 @@ def extract_identity_code(driver):
             if not text:
                 continue
             candidates.append(text)
-            # Identity codes are hex strings >= 32 characters
             if len(text) >= 32 and re.fullmatch(r"[0-9a-fA-F]+", text):
                 log("extract", f"✅ Found identity code candidate: {text[:8]}...")
                 return text
         except Exception:
             continue
 
-    # Debug: print all text we saw so we can adjust the regex if needed
     log("extract", "⚠️ No hex identity found. All TextViews on screen were:")
     for c in candidates:
         log("extract", f"    -> '{c[:80]}' (len={len(c)})")
 
-    # Fallback: longest text >= 40 chars (in case format changes)
     fallback = [c for c in candidates if len(c) >= 40]
     if fallback:
         longest = max(fallback, key=len)
@@ -141,6 +143,9 @@ def run_registration(driver):
     log("4/6", "✅ Typed identity code")
     random_sleep(0.5, 1.5)
 
+    # FIXED: Hide the on-screen keyboard so the Log in button becomes clickable
+    hide_keyboard(driver)
+
     log("5/6", "Clicking Log in button...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_LOGIN_BTN))).click()
     log("5/6", "✅ Logged in")
@@ -153,6 +158,12 @@ def run_registration(driver):
     referral_input = wait.until(EC.presence_of_element_located((AppiumBy.ID, ID_REFERRAL_INPUT)))
     referral_input.click()
     human_type(referral_input, REFERRAL_CODE)
+    log("6/6", "✅ Typed referral code")
+    random_sleep(0.5, 1.5)
+
+    # Defensive: hide keyboard again before clicking Bind
+    hide_keyboard(driver)
+
     wait.until(EC.element_to_be_clickable((AppiumBy.ID, ID_BIND_BTN))).click()
     log("6/6", "✅ Referral submitted")
     random_sleep(2.0, 4.0)
