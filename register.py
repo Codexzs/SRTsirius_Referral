@@ -97,34 +97,39 @@ def extract_identity_code(driver):
         return longest
     raise Exception("Could not find identity code on screen.")
 
-def wait_for_cloudflare(driver, max_wait=90):
-    """
-    Wait for Cloudflare to resolve. Returns True if passed, False if stuck.
-    Cloudflare sometimes resolves in 10-30 seconds if it decides the session is OK.
-    """
-    log("cf", f"Waiting up to {max_wait}s for Cloudflare to resolve...")
+def wait_for_cloudflare(driver, max_wait=120):
+    log("cf", f"Waiting up to {max_wait}s for Cloudflare to auto-pass...")
     start = time.time()
+    last_status = ""
     while time.time() - start < max_wait:
         elapsed = int(time.time() - start)
+
+        # Check if Cloudflare passed (Home tab visible)
         try:
-            # Check if we made it past Cloudflare (Home tab visible)
             driver.find_element(AppiumBy.XPATH, XPATH_HOME_TAB)
             log("cf", f"✅ Cloudflare passed after {elapsed}s!")
             return True
         except Exception:
             pass
 
-        # Log Cloudflare status every 15 seconds
-        if elapsed > 0 and elapsed % 15 == 0:
+        # Check current Cloudflare status
+        try:
+            driver.find_element(AppiumBy.XPATH, "//*[@text='Human verification']")
+            status = "widget visible"
+        except Exception:
             try:
-                driver.find_element(AppiumBy.XPATH, XPATH_CLOUDFLARE_CHECK)
-                log("cf", f"   Still on Cloudflare widget... ({elapsed}s)")
+                driver.find_element(AppiumBy.XPATH, "//*[contains(@text, 'Checking')]")
+                status = "checking browser"
             except Exception:
-                log("cf", f"   Intermediate state... ({elapsed}s)")
+                status = "transitioning"
+
+        if status != last_status:
+            log("cf", f"   [{elapsed}s] Status: {status}")
+            last_status = status
 
         time.sleep(3)
 
-    log("cf", f"❌ Cloudflare did NOT resolve within {max_wait}s")
+    log("cf", f"❌ Cloudflare did NOT auto-pass within {max_wait}s")
     return False
 
 # ============================================================
@@ -161,7 +166,7 @@ def run_registration(driver):
 
     # ---- Cloudflare wait with retry ----
     log("5/9", "Waiting for Cloudflare Human verification...")
-    if not wait_for_cloudflare(driver, max_wait=90):
+    if not wait_for_cloudflare(driver, max_wait=120):
         log("5/9", "❌ Cloudflare is blocking. Dumping page source...")
         print(driver.page_source, flush=True)
         raise Exception("Cloudflare verification is blocking the workflow. "
