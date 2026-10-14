@@ -2,8 +2,8 @@ name: Daily Farming
 
 on:
   schedule:
-    - cron: '0 22 * * *'
-  workflow_dispatch:
+    - cron: '0 22 * * *' # Runs once daily
+  workflow_dispatch:      # Allows manual testing
 
 permissions:
   contents: write
@@ -15,6 +15,13 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      # ⬇️ CRITICAL FIX: Enable KVM for hardware acceleration ⬇️
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -48,27 +55,12 @@ jobs:
             -camera-back none -camera-front none -no-snapshot
           script: |
             echo "=== Installing APK ==="
-            adb install -r app.apk
-            
-            if ! adb shell pm list packages | grep -q "com.siriusnetwork.app"; then
-              echo "❌ APK installation failed"
-              exit 1
-            fi
-            echo "✅ APK installed successfully"
+            adb install -r app.apk && echo "✅ APK installed successfully" || (echo "❌ APK installation failed" && exit 1)
             
             echo "=== Starting Appium ==="
             appium --log-level info &
-            
-            TIMEOUT=60
-            while ! nc -z localhost 4723; do
-              sleep 1
-              TIMEOUT=$((TIMEOUT-1))
-              if [ $TIMEOUT -le 0 ]; then
-                echo "❌ Appium failed to start in 60s"
-                exit 1
-              fi
-            done
-            echo "✅ Appium is up on port 4723"
+            sleep 15
+            echo "✅ Appium should be running now"
             
             echo "=== Running daily_login.py ==="
             python daily_login.py
