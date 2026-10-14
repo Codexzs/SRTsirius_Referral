@@ -15,7 +15,8 @@ APP_PACKAGE = "com.siriusnetwork.app"
 
 XPATH_WELCOME_LOGIN_LINK = "//*[@text='Log in']"
 XPATH_INPUT_FIELD        = "//android.widget.EditText"
-XPATH_LOGIN_BTN          = "//android.widget.Button[@text='Log in']"
+# FIXED: Broadened to wildcard for the same reason as register.py
+XPATH_LOGIN_BTN          = "//*[@text='Log in']"
 ID_START_BTN             = "com.siriusnetwork.app:id/btn_start_link"
 
 # ============================================================
@@ -31,6 +32,14 @@ def human_type(element, text):
     for ch in text:
         element.send_keys(ch)
         time.sleep(random.uniform(0.1, 0.3))
+
+def hide_keyboard(driver):
+    try:
+        driver.hide_keyboard()
+        log("kbd", "✅ Hid on-screen keyboard")
+    except Exception:
+        log("kbd", "Keyboard already hidden")
+    time.sleep(1.0)
 
 def reset_app():
     log("reset", "Force-stopping app...")
@@ -62,6 +71,9 @@ def farm_account(driver, identity_code):
     identity_input.click()
     human_type(identity_input, identity_code)
     random_sleep(0.5, 1.5)
+
+    # FIXED: Hide keyboard before clicking Log in
+    hide_keyboard(driver)
 
     log("farm", "Clicking Log in button...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_LOGIN_BTN))).click()
