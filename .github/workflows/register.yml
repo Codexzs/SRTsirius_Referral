@@ -58,8 +58,8 @@ jobs:
           target: google_apis_playstore
           arch: x86_64
           profile: pixel_5
-          ram-size: 2048M
-          heap-size: 512M
+          ram-size: 4096M
+          heap-size: 1024M
           emulator-options: >
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none -no-snapshot
@@ -67,12 +67,10 @@ jobs:
             echo "=== Installing APK ==="
             adb install -r ./app.apk && echo "✅ APK installed successfully" || exit 1
             
-            echo "=== Setting WebView to real Chrome ==="
-            adb shell cmd webviewupdate set-webview-implementation com.android.chrome || true
-            
             echo "=== Starting Appium ==="
             appium --log-level info &
             sleep 15
+            echo "✅ Appium should be running now"
             
             echo "=== Running register.py ==="
             python register.py
