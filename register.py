@@ -24,7 +24,8 @@ XPATH_BTN_SAVED          = "//*[@text='I saved it, next']"
 XPATH_WELCOME_LOGIN_LINK = "//*[@text='Log in']"
 XPATH_INPUT_FIELD        = "//android.widget.EditText"
 XPATH_LOGIN_BTN          = "//android.widget.Button[@text='Log in']"
-XPATH_IDENTITY           = "//android.widget.Button[@text='Copy']/parent::*/android.widget.TextView"
+# FIXED: Using preceding-sibling based on your log analysis
+XPATH_IDENTITY           = "//*[@text='Copy']/preceding-sibling::android.widget.TextView"
 
 ID_START_LINK_BTN = "com.siriusnetwork.app:id/btn_start_link"
 ID_REFERRAL_INPUT = "com.siriusnetwork.app:id/et_referral_code"
@@ -129,7 +130,6 @@ def run_registration(driver):
     log("6/6", f"💾 Saved to {FILE_NAME}")
 
 # ============================================================
-# ============================================================
 #   MAIN EXECUTION
 # ============================================================
 if __name__ == "__main__":
@@ -137,7 +137,6 @@ if __name__ == "__main__":
     options.platform_name = "Android"
     options.automation_name = "UiAutomator2"
     options.app_package = APP_PACKAGE
-    # options.app_activity = ".MainActivity"  # <-- REMOVE OR COMMENT OUT THIS LINE
     options.full_reset = False
 
     log("init", "Connecting to Appium server...")
