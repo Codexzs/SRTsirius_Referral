@@ -66,12 +66,11 @@ jobs:
             -camera-back none -camera-front none -no-snapshot
           script: |
             echo "=== Installing APK ==="
-            adb install -r app.apk && echo "✅ APK installed successfully" || (echo "❌ APK installation failed" && exit 1)
+            adb install -r ./app.apk && echo "✅ APK installed successfully" || exit 1
             
             echo "=== Starting Appium ==="
             appium --log-level info &
             sleep 15
-            echo "✅ Appium should be running now"
             
             echo "=== Running register.py ==="
             python register.py
