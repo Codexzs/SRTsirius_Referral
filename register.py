@@ -1,5 +1,6 @@
 import time
 import random
+import re
 import subprocess
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
@@ -24,8 +25,6 @@ XPATH_BTN_SAVED          = "//*[@text='I saved it, next']"
 XPATH_WELCOME_LOGIN_LINK = "//*[@text='Log in']"
 XPATH_INPUT_FIELD        = "//android.widget.EditText"
 XPATH_LOGIN_BTN          = "//android.widget.Button[@text='Log in']"
-# FIXED: Using preceding-sibling based on your log analysis
-XPATH_IDENTITY           = "//*[@text='Copy']/preceding-sibling::android.widget.TextView"
 
 ID_START_LINK_BTN = "com.siriusnetwork.app:id/btn_start_link"
 ID_REFERRAL_INPUT = "com.siriusnetwork.app:id/et_referral_code"
@@ -63,6 +62,47 @@ def reset_app():
     time.sleep(3)
     log("reset", "✅ App reset complete")
 
+def extract_identity_code(driver):
+    """
+    Robustly find the identity code by scanning ALL TextViews on screen
+    and picking the one that looks like a hex identity string.
+    Works regardless of UI nesting.
+    """
+    log("extract", "Waiting for identity screen to render...")
+    time.sleep(3)  # Give the screen a moment to fully render
+
+    # Collect all visible TextViews
+    elements = driver.find_elements(AppiumBy.XPATH, "//android.widget.TextView")
+    log("extract", f"Found {len(elements)} TextView(s) on screen. Scanning...")
+
+    candidates = []
+    for el in elements:
+        try:
+            text = el.text.strip()
+            if not text:
+                continue
+            candidates.append(text)
+            # Identity codes are hex strings >= 32 characters
+            if len(text) >= 32 and re.fullmatch(r"[0-9a-fA-F]+", text):
+                log("extract", f"✅ Found identity code candidate: {text[:8]}...")
+                return text
+        except Exception:
+            continue
+
+    # Debug: print all text we saw so we can adjust the regex if needed
+    log("extract", "⚠️ No hex identity found. All TextViews on screen were:")
+    for c in candidates:
+        log("extract", f"    -> '{c[:80]}' (len={len(c)})")
+
+    # Fallback: longest text >= 40 chars (in case format changes)
+    fallback = [c for c in candidates if len(c) >= 40]
+    if fallback:
+        longest = max(fallback, key=len)
+        log("extract", f"⚠️ Using fallback (longest string): {longest[:8]}...")
+        return longest
+
+    raise Exception("Could not find identity code on screen. Check the TextView dump above.")
+
 # ============================================================
 #   REGISTRATION FLOW
 # ============================================================
@@ -74,11 +114,9 @@ def run_registration(driver):
     log("1/6", "✅ Clicked")
     random_sleep()
 
-    log("2/6", "Reading identity code...")
-    identity_code = wait.until(EC.presence_of_element_located(
-        (AppiumBy.XPATH, XPATH_IDENTITY)
-    )).text.strip()
-    log("2/6", f"✅ Read identity: {identity_code[:8]}...")
+    log("2/6", "Extracting identity code...")
+    identity_code = extract_identity_code(driver)
+    log("2/6", f"✅ Identity: {identity_code[:8]}...")
 
     log("3/6", "Clicking 'I saved it, next'...")
     wait.until(EC.element_to_be_clickable((AppiumBy.XPATH, XPATH_BTN_SAVED))).click()
