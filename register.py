@@ -129,6 +129,7 @@ def run_registration(driver):
     log("6/6", f"💾 Saved to {FILE_NAME}")
 
 # ============================================================
+# ============================================================
 #   MAIN EXECUTION
 # ============================================================
 if __name__ == "__main__":
@@ -136,7 +137,7 @@ if __name__ == "__main__":
     options.platform_name = "Android"
     options.automation_name = "UiAutomator2"
     options.app_package = APP_PACKAGE
-    options.app_activity = ".MainActivity"
+    # options.app_activity = ".MainActivity"  # <-- REMOVE OR COMMENT OUT THIS LINE
     options.full_reset = False
 
     log("init", "Connecting to Appium server...")
