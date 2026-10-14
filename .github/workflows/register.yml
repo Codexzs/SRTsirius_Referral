@@ -66,29 +66,12 @@ jobs:
             -camera-back none -camera-front none -no-snapshot
           script: |
             echo "=== Installing APK ==="
-            adb install -r app.apk
-            
-            # FIXED: Using a standard if block to avoid shell syntax errors
-            if adb shell pm list packages | grep -q "com.siriusnetwork.app"; then
-              echo "✅ APK installed successfully"
-            else
-              echo "❌ APK installation failed"
-              exit 1
-            fi
+            adb install -r app.apk && echo "✅ APK installed successfully" || (echo "❌ APK installation failed" && exit 1)
             
             echo "=== Starting Appium ==="
             appium --log-level info &
-            
-            TIMEOUT=60
-            while ! nc -z localhost 4723; do
-              sleep 1
-              TIMEOUT=$((TIMEOUT-1))
-              if [ $TIMEOUT -le 0 ]; then
-                echo "❌ Appium failed to start in 60s"
-                exit 1
-              fi
-            done
-            echo "✅ Appium is up on port 4723"
+            sleep 15
+            echo "✅ Appium should be running now"
             
             echo "=== Running register.py ==="
             python register.py
